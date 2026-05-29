@@ -930,6 +930,14 @@ function renderChecklist() {
 async function onPagamentoChange(parcelaId, valor) {
   const p = panelParcelas.find(x=>x.id===parcelaId);
   if (!p) return;
+  // Valida ano — rejeita anos fora do intervalo razoável
+  if (valor) {
+    const ano = parseInt(valor.split('-')[0]);
+    if (isNaN(ano) || ano < 2000 || ano > 2100) {
+      toast('Data inválida. Verifique o ano informado.', true);
+      return;
+    }
+  }
   showPanelSaving(true);
   try {
     await api.patch('parcelas', parcelaId, { data_pagamento: valor || null });
