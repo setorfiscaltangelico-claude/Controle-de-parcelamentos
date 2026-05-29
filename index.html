@@ -265,6 +265,10 @@ tbody td:first-child{padding-left:18px;}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       Colaboradores
     </button>
+    <button class="sb-item" onclick="openGerenciarTipos()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+      Tipos de parcelamento
+    </button>
   </nav>
   <div class="sb-user" id="sb-user-block">
     <div class="sb-user-avatar" id="sb-avatar">?</div>
@@ -440,6 +444,43 @@ tbody td:first-child{padding-left:18px;}
   </div>
 </div>
 
+<!-- MODAL TIPOS DE PARCELAMENTO -->
+<div class="modal-overlay" id="modal-tipos">
+  <div class="modal" style="width:520px">
+    <div class="modal-hd">
+      <h2>Tipos de parcelamento</h2>
+      <button class="modal-close" onclick="closeGerenciarTipos()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="info-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/></svg>
+      Gerencie os tipos de parcelamento disponíveis para cadastro.
+    </div>
+    <div id="tipos-lista" style="margin-bottom:1rem;max-height:320px;overflow-y:auto"></div>
+    <div class="form-sec" style="margin-top:0;padding-top:1rem;border-top:1px solid var(--border)">Adicionar novo tipo</div>
+    <div class="form-g2" style="margin-bottom:8px">
+      <div class="form-row" style="margin-bottom:0">
+        <label>Nome do tipo</label>
+        <input type="text" id="novo-tipo-nome" class="filter-input" style="width:100%;height:36px" placeholder="Ex: Parcelamento Especial">
+      </div>
+      <div class="form-row" style="margin-bottom:0">
+        <label>Disponível para</label>
+        <select id="novo-tipo-pessoa" class="filter-select" style="width:100%;height:36px">
+          <option value="AMBOS">PF e PJ</option>
+          <option value="PF">Somente Pessoa Física</option>
+          <option value="PJ">Somente Pessoa Jurídica</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="adicionarTipo()" style="width:100%;justify-content:center;margin-top:4px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Adicionar tipo
+    </button>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeGerenciarTipos()">Fechar</button></div>
+  </div>
+</div>
+
 <!-- MODAL COLABORADORES -->
 <div class="modal-overlay" id="modal-colabs">
   <div class="modal" style="width:420px">
@@ -496,11 +537,22 @@ const api = {
   }
 };
 
-const TIPOS = {
+// Tipos carregados do banco
+let TIPOS_DB = [];
+// Fallback enquanto carrega
+let TIPOS = {
   PF:['Parcelamento Simplificado','Sispar - PGFN','Parcelamento Estadual'],
   PJ:['Parcelamento Simplificado','Parcelamento Não Previdenciário','Parcelamento Simplificado Previdenciário',
       'Parcelamento Micro Empreendedor Individual','Parcelamento Simples Nacional','Sispar - PGFN','Parcelamento Estadual']
 };
+function buildTIPOS() {
+  if (!TIPOS_DB.length) return;
+  TIPOS = { PF: [], PJ: [] };
+  TIPOS_DB.filter(t=>t.ativo).forEach(t => {
+    if (t.pessoa === 'PF' || t.pessoa === 'AMBOS') TIPOS.PF.push(t.nome);
+    if (t.pessoa === 'PJ' || t.pessoa === 'AMBOS') TIPOS.PJ.push(t.nome);
+  });
+}
 const STATUS_ATIVOS=['Em dia','Atrasado','Pendente','Cancelado'];
 const CORES=['#1847C2','#1A7248','#993C1D','#7A4808','#5228B0','#9A5D0A','#167068','#C02828'];
 const CORES_STATUS={'Em dia':'#1A7248','Atrasado':'#C02828','Pendente':'#9A5D0A','Cancelado':'#525260','Concluído':'#167068','Parcelamento perdido':'#5228B0'};
@@ -517,12 +569,15 @@ function showPanelSaving(show){document.getElementById('panel-saving').style.dis
 
 async function carregarTudo(){
   try{
-    const [parc,colabs]=await Promise.all([
+    const [parc,colabs,tipos]=await Promise.all([
       api.get('parcelamentos','order=id.desc'),
-      api.get('colaboradores','order=nome.asc')
+      api.get('colaboradores','order=nome.asc'),
+      api.get('tipos_parcelamento','order=nome.asc&ativo=eq.true')
     ]);
     dados=parc.map(mapDB);
     colaboradores=colabs.map(c=>c.nome);
+    TIPOS_DB=tipos;
+    buildTIPOS();
     setConexao(true);
   }catch(e){setConexao(false);toast('Erro ao carregar dados.',true);dados=[];colaboradores=[];}
   populaSelects();renderMetrics();renderDashboard();renderPagina();renderArquivo();
@@ -833,6 +888,59 @@ async function excluir(id){
   }catch(e){toast('Erro ao excluir.',true);}
 }
 
+// ── TIPOS DE PARCELAMENTO ──
+function openGerenciarTipos(){renderTiposLista();document.getElementById('modal-tipos').classList.add('open');}
+function closeGerenciarTipos(){document.getElementById('modal-tipos').classList.remove('open');}
+function renderTiposLista(){
+  const lista=document.getElementById('tipos-lista');
+  if(!TIPOS_DB.length){lista.innerHTML='<div style="padding:1rem;text-align:center;color:var(--text-3);font-size:13px">Nenhum tipo cadastrado</div>';return;}
+  lista.innerHTML=TIPOS_DB.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${escHtml(t.nome)}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">${t.pessoa==='AMBOS'?'PF e PJ':t.pessoa==='PF'?'Somente Pessoa Física':'Somente Pessoa Jurídica'}</div>
+      </div>
+      <span class="badge ${t.ativo?'b-emdia':'b-cancelado'}" style="cursor:pointer" onclick="toggleTipo(${t.id})" title="${t.ativo?'Clique para desativar':'Clique para ativar'}">${t.ativo?'Ativo':'Inativo'}</span>
+      <button class="icon-btn danger" onclick="excluirTipo(${t.id})" title="Excluir">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+    </div>`).join('');
+}
+async function adicionarTipo(){
+  const nome=document.getElementById('novo-tipo-nome').value.trim();
+  const pessoa=document.getElementById('novo-tipo-pessoa').value;
+  if(!nome){toast('Informe o nome do tipo.',true);return;}
+  if(TIPOS_DB.find(t=>t.nome.toLowerCase()===nome.toLowerCase())){toast('Este tipo já existe.',true);return;}
+  try{
+    const res=await api.post('tipos_parcelamento',{nome,pessoa});
+    TIPOS_DB.push(res[0]);
+    buildTIPOS();
+    document.getElementById('novo-tipo-nome').value='';
+    renderTiposLista();
+    populaSelects();
+    atualizarTipos();
+    toast('Tipo adicionado!');
+  }catch(e){toast('Erro ao adicionar tipo.',true);}
+}
+async function toggleTipo(id){
+  const t=TIPOS_DB.find(x=>x.id===id);if(!t)return;
+  try{
+    await api.patch('tipos_parcelamento',id,{ativo:!t.ativo});
+    t.ativo=!t.ativo;
+    buildTIPOS();renderTiposLista();populaSelects();atualizarTipos();
+    toast(t.ativo?'Tipo ativado!':'Tipo desativado!');
+  }catch(e){toast('Erro ao atualizar tipo.',true);}
+}
+async function excluirTipo(id){
+  if(!confirm('Excluir este tipo de parcelamento?'))return;
+  try{
+    await api.delete('tipos_parcelamento',id);
+    TIPOS_DB=TIPOS_DB.filter(t=>t.id!==id);
+    buildTIPOS();renderTiposLista();populaSelects();atualizarTipos();
+    toast('Tipo excluído.');
+  }catch(e){toast('Erro ao excluir tipo.',true);}
+}
+
 function openGerenciarColabs(){renderColabsLista();document.getElementById('modal-colabs').classList.add('open');}
 function closeGerenciarColabs(){document.getElementById('modal-colabs').classList.remove('open');}
 function renderColabsLista(){
@@ -865,7 +973,7 @@ document.addEventListener('click',function(e){
   const row=e.target.closest('tr.clickable-row');
   if(row){const id=parseInt(row.dataset.panelId);if(id)openPanel(id);}
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeGerenciarColabs();closePanel();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeGerenciarColabs();closeGerenciarTipos();closePanel();}});
 
 // INIT
 carregarTudo();
