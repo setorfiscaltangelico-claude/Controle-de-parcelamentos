@@ -831,7 +831,7 @@ function renderPagina(){
       const emissorEl=d.emissor?`<div class="person-cell"><div class="avatar av-blue">${initials(d.emissor)}</div><span class="person-name">${escHtml(d.emissor)}</span></div>`:'<span style="color:var(--text-3)">—</span>';
       const colabEl=d.colab?`<div class="person-cell"><div class="avatar av-green">${initials(d.colab)}</div><span class="person-name">${escHtml(d.colab)}</span></div>`:'<span style="color:var(--text-3)">—</span>';
       const isSelected=panelParcelamentoId===d.id;
-      return `<tr class="${isSelected?'row-selected':''}" data-id="${d.id}" onclick="openPanel(${d.id})">
+      return `<tr class="clickable-row ${isSelected?'row-selected':''}" data-panel-id="${d.id}" data-id="${d.id}">
         <td><div class="client-name">${escHtml(d.cliente)}</div></td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text-2)" title="${escHtml(d.tipo)}">${escHtml(d.tipo)}</td>
         <td><span class="badge ${pfBadge}">${d.pessoa}</span></td>
@@ -1108,4 +1108,45 @@ async function excluir(id){
 
 // ── COLABORADORES ──
 function openGerenciarColabs(){renderColabsLista();document.getElementById('modal-colabs').classList.add('open');}
-function closeGerenciarColabs(){document.getElementById('modal-colabs').class
+function closeGerenciarColabs(){document.getElementById('modal-colabs').classList.remove('open');}
+function renderColabsLista(){
+  document.getElementById('colabs-lista').innerHTML=colaboradores.map((c,i)=>`
+    <div class="colab-item">
+      <div class="avatar av-blue" style="width:28px;height:28px;font-size:11px">${initials(c)}</div>
+      <span style="flex:1;font-size:13px">${escHtml(c)}</span>
+      <button class="icon-btn danger" onclick="removerColab(${i})" ${colaboradores.length<=1?'disabled':''}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+    </div>`).join('');
+}
+async function adicionarColab(){
+  const inp=document.getElementById('novo-colab');const nome=inp.value.trim();
+  if(!nome)return;if(colaboradores.includes(nome)){alert('Colaborador já existe.');return;}
+  try{await api.post('colaboradores',{nome});colaboradores.push(nome);inp.value='';renderColabsLista();populaSelects();toast('Colaborador adicionado!');}
+  catch(e){toast('Erro ao adicionar.',true);}
+}
+async function removerColab(idx){
+  if(colaboradores.length<=1)return;
+  if(!confirm(`Remover "${colaboradores[idx]}"?`))return;
+  try{
+    const cs=await api.get('colaboradores',`nome=eq.${encodeURIComponent(colaboradores[idx])}`);
+    if(cs.length)await api.delete('colaboradores',cs[0].id);
+    colaboradores.splice(idx,1);renderColabsLista();populaSelects();
+  }catch(e){toast('Erro ao remover.',true);}
+}
+
+// Delegação de evento para clique nas linhas — mais confiável que onclick inline
+document.addEventListener('click', function(e) {
+  if (e.target.closest('.row-actions') || e.target.closest('button')) return;
+  const row = e.target.closest('tr.clickable-row');
+  if (row) {
+    const id = parseInt(row.dataset.panelId);
+    if (id) openPanel(id);
+  }
+});
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeGerenciarColabs();closePanel();}});
+carregarTudo();
+</script>
+</body>
+</html>
